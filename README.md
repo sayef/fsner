@@ -100,32 +100,7 @@ print(json.dumps(output, indent=2))
 pretty_embed(query_texts, output, list(support_texts.keys()))
 ```
 
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <title>displaCy</title>
-    </head>
-    <body style="font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'; padding: 4rem 2rem; direction: ltr">
-<figure style="margin-bottom: 6rem">
-<div class="entities" style="line-height: 2.5; direction: ltr">
-
-<div class="entities" style="line-height: 2.5; direction: ltr">Does 
-<mark class="entity" style="background: #7aecec; padding: 0.45em 0.6em; margin: 0 0.25em; line-height: 1; border-radius: 0.35em;">
-    Luke's
-    <span style="font-size: 0.8em; font-weight: bold; line-height: 1; border-radius: 0.35em; vertical-align: middle; margin-left: 0.5rem">Restaurant</span>
-</mark>
- serve lunch?</div>
-<div class="entities" style="line-height: 2.5; direction: ltr">Chang does not speak 
-<mark class="entity" style="background: #bfeeb7; padding: 0.45em 0.6em; margin: 0 0.25em; line-height: 1; border-radius: 0.35em;">
-    Taiwanese
-    <span style="font-size: 0.8em; font-weight: bold; line-height: 1; border-radius: 0.35em; vertical-align: middle; margin-left: 0.5rem">Language</span>
-</mark>
- very well.</div>
-<div class="entities" style="line-height: 2.5; direction: ltr">I like Berlin.</div>
- </div>
-</figure>
-</body>
-</html>
+<p align="center"> <img src="http://sayef.tech/uploads/FSNER-OUTPUT.png" alt="FSNER OUTPUT"> </p>
 
 ## Datasets preparation
 
