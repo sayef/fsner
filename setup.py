@@ -16,7 +16,6 @@ try:
         if version.startswith('v'):
             version = version[1:]
         semantic_version.Version(version)
-        print("version:", version)
         with open(VERSION_FILE_PATH, "w") as f:
             f.write(f'__version__ = "{version}"')
 
@@ -29,7 +28,11 @@ try:
             matcher = re.search(r"^Version: (.*)$", content, re.M)
             if matcher:
                 version = matcher.group(1).strip()
-        print(version)
+            else:
+                raise RuntimeError("Built version is not matching with PKG-INFO")
+
+            with open(VERSION_FILE_PATH, "w") as f:
+                f.write(f'__version__ = "{version}"')
 
     with open("README.md", "r", encoding="utf-8") as fh:
         long_description = fh.read()
