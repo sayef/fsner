@@ -1,27 +1,63 @@
+import os
+import subprocess
+import sys
+
 import setuptools
 
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+VERSION_FILE_PATH = os.path.join(ROOT_DIR, "src", "fsner", "version.py")
 
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+try:
 
-setuptools.setup(
-    name="fsner",
-    version="0.0.1",
-    author="msi sayef",
-    author_email="msi.sayef@gmail.com",
-    description="Few-shot Named Entity Recognition",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    url="https://github.com/huggingface/transformers/tree/master/examples/research_projects/fsner",
-    project_urls={
-        "Bug Tracker": "https://github.com/huggingface/transformers/issues",
-    },
-    classifiers=[
-        "Programming Language :: Python :: 3",
-        "Operating System :: OS Independent",
-    ],
-    package_dir={"": "src"},
-    packages=setuptools.find_packages(where="src"),
-    python_requires=">=3.6",
-    install_requires=["torch>=1.9.0", "transformers>=4.9.2"],
-)
+    if "sdist" in sys.argv:
+        import semantic_version
+        import os
+
+        version = subprocess.check_output("git describe --exact-match --tags HEAD", shell=True).decode().strip()
+        if version.startswith('v'):
+            version = version[1:]
+        semantic_version.Version(version)
+        print("version:", version)
+        with open(VERSION_FILE_PATH, "w") as f:
+            f.write(f'__version__ = "{version}"')
+
+    else:
+        version = '0.0.0'
+
+    with open("README.md", "r", encoding="utf-8") as fh:
+        long_description = fh.read()
+
+    setuptools.setup(
+        name="fsner",
+        version=version,
+        author="sayef",
+        author_email="hello@sayef.tech",
+        description="Few-shot Named Entity Recognition",
+        long_description=long_description,
+        long_description_content_type="text/markdown",
+        url="https://github.com/sayef/fsner",
+        project_urls={
+            "Bug Tracker": "https://github.com/sayef/fsner/issues",
+        },
+        classifiers=[
+            "Programming Language :: Python :: 3",
+            "Operating System :: OS Independent",
+        ],
+        package_dir={"": "src"},
+        packages=setuptools.find_packages(where="src"),
+        entry_points={
+            'console_scripts': ['fsner=fsner.cmdline:main'],
+        },
+        python_requires=">=3.6",
+        install_requires=["pytorch-lightning==1.5.10", "transformers>=4.16.2"],
+        extras_require={
+            "dev": [
+                "setuptools>=57.4.0",
+                "wheel>=0.37.0",
+                "semantic-version==2.9.0"
+            ]
+        }
+    )
+finally:
+    if os.path.exists(VERSION_FILE_PATH):
+        os.remove(VERSION_FILE_PATH)

@@ -4,85 +4,167 @@
   Implemented by <a href="https://huggingface.co/sayef"> sayef </a>. 
 </p>
 
+> UPDATES
+> 1. Training script is now available.
+> 2. Pairwise query and support examples are not required anymore. Please look into example usage for details.
+> 3. Added [sample dataset](https://github.com/sayef/fsner/blob/master/scripts/sample_dataset.json) and links to converted ontonotes5 training and validation dataset (please see dataset preparation section below).
+
 ## Overview
 
-The FSNER model was proposed in [Example-Based Named Entity Recognition](https://arxiv.org/abs/2008.10570) by Morteza Ziyadi, Yuting Sun, Abhishek Goswami, Jade Huang, Weizhu Chen. To identify entity spans in a new domain, it uses a train-free few-shot learning approach inspired by question-answering.
-
-
+The FSNER model was proposed in [Example-Based Named Entity Recognition](https://arxiv.org/abs/2008.10570) by Morteza
+Ziyadi, Yuting Sun, Abhishek Goswami, Jade Huang, Weizhu Chen. To identify entity spans in a new domain, it uses a
+train-free few-shot learning approach inspired by question-answering.
 
 ## Abstract
-----
+
 > We present a novel approach to named entity recognition (NER) in the presence of scarce data that we call example-based NER. Our train-free few-shot learning approach takes inspiration from question-answering to identify entity spans in a new and unseen domain. In comparison with the current state-of-the-art, the proposed method performs significantly better, especially when using a low number of support examples.
 
-
-
 ## Model Training Details
------
 
-| identifier        | epochs           | datasets  |
-| ---------- |:----------:| :-----:|
-| [sayef/fsner-bert-base-uncased](https://huggingface.co/sayef/fsner-bert-base-uncased)      | 10 | ontonotes5, conll2003, wnut2017, and fin (Alvarado et al.). |
-
+| identifier        | epochs |                                            datasets                                             |
+| ---------- |:------:|:-----------------------------------------------------------------------------------------------:|
+| [sayef/fsner-bert-base-uncased](https://huggingface.co/sayef/fsner-bert-base-uncased)      |   25   |  ontonotes5, conll2003, wnut2017, mit_movie_trivia, mit_restaurant and fin (Alvarado et al.).   |
 
 ## Installation and Example Usage
-------
 
 You can use the FSNER model in 3 ways:
 
 1. Install directly from PyPI: `pip install fsner` and import the model as shown in the code example below
 
-    or
+   or
 
-2. Install from source: `python setup.py install` and import the model as shown in the code example below
+2. Install from source: `python install .` and import the model as shown in the code example below
 
-    or
+   or
 
-3. Clone repo and change directory to `src` and import the model as shown in the code example below
-
-
+3. Clone [repo](https://github.com/sayef/fsner) and add absolute path of `fsner/src` directory to your PYTHONPATH and
+   import the model as shown in the code example below
 
 ```python
-from fsner import FSNERModel, FSNERTokenizerUtils
+import json
 
-model = FSNERModel("sayef/fsner-bert-base-uncased")
+from fsner import FSNERModel, FSNERTokenizerUtils, pretty_embed
 
-tokenizer = FSNERTokenizerUtils("sayef/fsner-bert-base-uncased")
-
-# size of query and supports must be the same. If you want to find all the entitites in one particular query, just repeat the same query n times where n is equal to the number of supports (or entities).
-
-
-query = [
-    'KWE 4000 can reach with a maximum speed from up to 450 P/min an accuracy from 50 mg',
-    'I would like to order a computer from eBay.',
+query_texts = [
+    "Does Luke's serve lunch?",
+    "Chang does not speak Taiwanese very well.",
+    "I like Berlin."
 ]
 
-# each list in supports are the examples of one entity type
-# wrap entities around with [E] and [/E] in the examples
+# Each list in supports are the examples of one entity type
+# Wrap entities around with [E] and [/E] in the examples.
+# Each sentence should have only one pair of [E] ... [/E]
 
-supports = [
-        [
-           'Horizontal flow wrapper [E] Pack 403 [/E] features the new retrofit-kit „paper-ON-form“',
-           '[E] Paloma Pick-and-Place-Roboter [/E] arranges the bakery products for the downstream tray-forming equipment',
-           'Finally, the new [E] Kliklok ACE [/E] carton former forms cartons and trays without the use of glue',
-           'We set up our pilot plant with the right [E] FibreForm® [/E] configuration to make prototypes for your marketing tests and package validation',
-           'The [E] CAR-T5 [/E] is a reliable, purely mechanically driven cartoning machine for versatile application fields'
-        ],
-        [
-            "[E] Walmart [/E] is a leading e-commerce company",
-            "I recently ordered a book from [E] Amazon [/E]",
-            "I ordered this from [E] ShopClues [/E]",
-            "[E] Flipkart [/E] started it's journey from zero"
-        ]
-   ]
+support_texts = {
+    "Restaurant": [
+        "What time does [E] Subway [/E] open for breakfast?",
+        "Is there a [E] China Garden [/E] restaurant in newark?",
+        "Does [E] Le Cirque [/E] have valet parking?",
+        "Is there a [E] McDonalds [/E] on main street?",
+        "Does [E] Mike's Diner [/E] offer huge portions and outdoor dining?"
+    ],
+    "Language": [
+        "Although I understood no [E] French [/E] in those days , I was prepared to spend the whole day with Chien - chien .",
+        "like what the hell 's that called in [E] English [/E] ? I have to register to be here like since I 'm a foreigner .",
+        "So , I 'm also working on an [E] English [/E] degree because that 's my real interest .",
+        "Al - Jazeera TV station , established in November 1996 in Qatar , is an [E] Arabic - language [/E] news TV station broadcasting global news and reports nonstop around the clock .",
+        "They think it 's far better for their children to be here improving their [E] English [/E] than sitting at home in front of a TV . \"",
+        "The only solution seemed to be to have her learn [E] French [/E] .",
+        "I have to read sixty pages of [E] Russian [/E] today ."
+    ]
+}
 
 device = 'cpu'
 
-W_query = tokenizer.tokenize(query).to(device)
-W_supports = tokenizer.tokenize(supports).to(device)
+tokenizer = FSNERTokenizerUtils("sayef/fsner-bert-base-uncased")
+queries = tokenizer.tokenize(query_texts).to(device)
+supports = tokenizer.tokenize(list(support_texts.values())).to(device)
 
-start_prob, end_prob = model(W_query, W_supports)
+model = FSNERModel("sayef/fsner-bert-base-uncased")
+model.to(device)
 
-output = tokenizer.extract_entity_from_scores(query, W_query, start_prob, end_prob, thresh=0.50)
+p_starts, p_ends = model.predict(queries, supports)
 
-print(output)
+# One can prepare supports once and reuse  multiple times with different queries
+# ------------------------------------------------------------------------------
+# start_token_embeddings, end_token_embeddings = model.prepare_supports(supports)
+# p_starts, p_ends = model.predict(queries, start_token_embeddings=start_token_embeddings,
+#                                  end_token_embeddings=end_token_embeddings)
+
+output = tokenizer.extract_entity_from_scores(query_texts, queries, p_starts, p_ends,
+                                              entity_keys=list(support_texts.keys()), thresh=0.50)
+
+print(json.dumps(output, indent=2))
+
+# install displacy for pretty embed
+pretty_embed(query_texts, output, list(support_texts.keys()))
+```
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>displaCy</title>
+    </head>
+    <body style="font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'; padding: 4rem 2rem; direction: ltr">
+<figure style="margin-bottom: 6rem">
+<div class="entities" style="line-height: 2.5; direction: ltr">
+
+<div class="entities" style="line-height: 2.5; direction: ltr">Does 
+<mark class="entity" style="background: #7aecec; padding: 0.45em 0.6em; margin: 0 0.25em; line-height: 1; border-radius: 0.35em;">
+    Luke's
+    <span style="font-size: 0.8em; font-weight: bold; line-height: 1; border-radius: 0.35em; vertical-align: middle; margin-left: 0.5rem">Restaurant</span>
+</mark>
+ serve lunch?</div>
+<div class="entities" style="line-height: 2.5; direction: ltr">Chang does not speak 
+<mark class="entity" style="background: #bfeeb7; padding: 0.45em 0.6em; margin: 0 0.25em; line-height: 1; border-radius: 0.35em;">
+    Taiwanese
+    <span style="font-size: 0.8em; font-weight: bold; line-height: 1; border-radius: 0.35em; vertical-align: middle; margin-left: 0.5rem">Language</span>
+</mark>
+ very well.</div>
+<div class="entities" style="line-height: 2.5; direction: ltr">I like Berlin.</div>
+ </div>
+</figure>
+</body>
+</html>
+
+## Datasets preparation
+
+1. We need to convert dataset into the following format. Let's say we have a dataset file train.json like following.
+2. Each list in supports are the examples of one entity type
+3. Wrap entities around with [E] and [/E] in the examples.
+4. Each example should have only one pair of [E] ... [/E].
+
+```json
+{
+  "CARDINAL_NUMBER": [
+    "Washington , cloudy , [E] 2 [/E] to 6 degrees .",
+    "New Dehli , sunny , [E] 6 [/E] to 19 degrees .",
+    "Well this is number [E] two [/E] .",
+    "....."
+  ],
+  "LANGUAGE": [
+    "They do n't have the Quicken [E] Dutch [/E] version ?",
+    "they learned a lot of [E] German [/E] .",
+    "and then [E] Dutch [/E] it 's Mifrau",
+    "...."
+  ],
+  "MONEY": [
+    "Per capita personal income ranged from $ [E] 11,116 [/E] in Mississippi to $ 23,059 in Connecticut ... .",
+    "The trade surplus was [E] 582 million US dollars [/E] .",
+    "It settled with a loss of 4.95 cents at $ [E] 1.3210 [/E] a pound .",
+    "...."
+  ]
+}
+```
+
+2. Converted ontonotes5 dataset can be found here:
+    1. [train](https://gist.githubusercontent.com/sayef/46deaf7e6c6e1410b430ddc8aff9c557/raw/ea7ae2ae933bfc9c0daac1aa52a9dc093d5b36f4/ontonotes5.train.json)
+    2. [dev](https://gist.githubusercontent.com/sayef/46deaf7e6c6e1410b430ddc8aff9c557/raw/ea7ae2ae933bfc9c0daac1aa52a9dc093d5b36f4/ontonotes5.dev.json)
+
+3. Then trainer script can be used to train/evaluate your fsner model.
+
+```bash
+fsner trainer --pretrained-model bert-base-uncased --mode train --train-data train.json --val-data val.json \
+                --train-batch-size 6 --val-batch-size 6 --n-examples-per-entity 10 --neg-example-batch-ratio 1/3 --max-epochs 25 --device gpu \
+                --gpus -1 --strategy ddp
 ```

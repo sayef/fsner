@@ -1,29 +1,41 @@
 import torch
-
+import transformers.tokenization_utils_base
 from transformers import AutoTokenizer
+from typing import Union, List
 
 
 class FSNERTokenizerUtils(object):
-    def __init__(self, pretrained_model_name_or_path):
+    def __init__(self, pretrained_model_name_or_path, entity_start_token="[E]", entity_end_token="[/E]"):
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path)
+        self.entity_start_token = entity_start_token
+        self.entity_end_token = entity_end_token
+        self.tokenizer.add_special_tokens(
+            {'additional_special_tokens': [self.entity_start_token, self.entity_end_token]})
+        self.entity_start_token_id = self.tokenizer.convert_tokens_to_ids(self.entity_start_token)
+        self.entity_end_token_id = self.tokenizer.convert_tokens_to_ids(self.entity_end_token)
 
-    def tokenize(self, x):
+    def tokenize(self, x: Union[str, List[str], List[List[str]]]) -> transformers.tokenization_utils_base.BatchEncoding:
         """
-        Wrapper function for tokenizing query and supports
-        Args:
-            x (`List[str] or List[List[str]]`):
-                List of strings for query or list of lists of strings for supports.
-        Returns:
-            `transformers.tokenization_utils_base.BatchEncoding` dict with additional keys and values for start_token_id, end_token_id and sizes of example lists for each entity type
+        Wrapper function for tokenizing queries and supports
+        :param x (`str, List[str] or List[List[str]]`): Single query string or list of strings for queries or list of lists of strings for supports.
+        :return `transformers.tokenization_utils_base.BatchEncoding` dict with additional keys and values for start_token_id, end_token_id and sizes of example lists for each entity type
         """
-
-        if isinstance(x, list) and all([isinstance(_x, list) for _x in x]):
+        if isinstance(x, str):
+            return self.tokenizer(
+                x,
+                padding="max_length",
+                max_length=512,
+                truncation=True,
+                return_tensors="pt",
+            )
+        elif isinstance(x, list) and all([isinstance(_x, list) for _x in x]):
             d = None
             for l in x:
                 t = self.tokenizer(
                     l,
                     padding="max_length",
-                    max_length=384,
+                    max_length=512,
                     truncation=True,
                     return_tensors="pt",
                 )
@@ -34,16 +46,17 @@ class FSNERTokenizerUtils(object):
                 else:
                     d = t
 
-            d["start_token_id"] = torch.tensor(self.tokenizer.convert_tokens_to_ids("[E]"))
-            d["end_token_id"] = torch.tensor(self.tokenizer.convert_tokens_to_ids("[/E]"))
+            d["start_token_id"] = torch.tensor(self.entity_start_token_id)
+            d["end_token_id"] = torch.tensor(self.entity_end_token_id)
 
         elif isinstance(x, list) and all([isinstance(_x, str) for _x in x]):
             d = self.tokenizer(
                 x,
                 padding="max_length",
-                max_length=384,
+                max_length=512,
                 truncation=True,
                 return_tensors="pt",
+                return_offsets_mapping=True
             )
 
         else:
@@ -53,49 +66,69 @@ class FSNERTokenizerUtils(object):
 
         return d
 
-    def extract_entity_from_scores(self, query, W_query, p_start, p_end, thresh=0.70):
+    def _decode(self, offset_map, text, start_idx, end_idx):
+        s = offset_map[start_idx:end_idx][0][0].item()
+        e = offset_map[start_idx:end_idx][-1][-1].item()
+        return s, e, text[s:e]
+
+    def extract_entity_from_scores(self, query_texts, queries, p_starts, p_ends, entity_keys=None, thresh=0.45):
+        """ Extracts entities from query and scores given a threshold.
+        :param query_texts (`List[str]`): List of query strings
+        :param queries (`torch.LongTensor` of shape `(batch_size, sequence_length)`): Indices of query sequence tokens in the vocabulary.
+        :param p_starts (`torch.FloatTensor` of shape `(batch_size, sequence_length)`): Scores of each token as being start token of an entity
+        :param p_ends (`torch.FloatTensor` of shape `(batch_size, sequence_length)`): Scores of each token as being end token of an entity
+        :param entity_keys (`List[str]`): List of entity keys, default numeric indices i.e. 0, 1, 2, ... etc.
+        :param thresh (`float [0,1]`): Threshold value for filtering spans
+        :return: Non-overlapping predicted entity span (start and end indices) and score for each query
         """
-        Extracts entities from query and scores given a threshold.
-        Args:
-            query (`List[str]`):
-                List of query strings.
-            W_query (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
-                Indices of query sequence tokens in the vocabulary.
-            p_start (`torch.FloatTensor` of shape `(batch_size, sequence_length)`):
-                Scores of each token as being start token of an entity
-            p_end (`torch.FloatTensor` of shape `(batch_size, sequence_length)`):
-                Scores of each token as being end token of an entity
-            thresh (`float`):
-                Score threshold value
-        Returns:
-            A list of lists of tuples(decoded entity, score)
-        """
+        queries = queries.to("cpu")
+        p_starts = p_starts.to("cpu")
+        p_ends = p_ends.to("cpu")
 
-        final_outputs = []
-        for idx in range(len(W_query["input_ids"])):
-            start_indexes = end_indexes = range(p_start.shape[1])
+        n_queries = len(queries["input_ids"])
+        n_entities = len(p_starts)
 
-            output = []
-            for start_id in start_indexes:
-                for end_id in end_indexes:
-                    if start_id < end_id:
-                        output.append(
-                            (
-                                start_id,
-                                end_id,
-                                p_start[idx][start_id].item(),
-                                p_end[idx][end_id].item(),
-                            )
-                        )
+        if entity_keys is None:
+            entity_keys = list(range(n_entities))
 
-            output.sort(key=lambda tup: (tup[2] * tup[3]), reverse=True)
-            temp = []
-            for k in range(len(output)):
-                if output[k][2] * output[k][3] >= thresh:
-                    c_start_pos, c_end_pos = output[k][0], output[k][1]
-                    decoded = self.tokenizer.decode(W_query["input_ids"][idx][c_start_pos:c_end_pos])
-                    temp.append((decoded, output[k][2] * output[k][3]))
+        predicted_scores = [[] for _ in range(n_queries)]
+        predicted_entities = [[] for _ in range(n_queries)]
+        for entity_idx, (p_start, p_end) in enumerate(zip(p_starts, p_ends)):
+            for idx in range(n_queries):
+                start_indexes = range(len(self.tokenizer.tokenize(query_texts[idx])) + 1)
+                end_indexes = range(len(self.tokenizer.tokenize(query_texts[idx])) + 1)
+                all_pairs_scores = []
+                for start_idx in start_indexes:
+                    for end_idx in end_indexes:
+                        if start_idx == end_idx == 1:
+                            score = (p_start[idx][start_idx].item() + p_end[idx][end_idx].item()) / 2.
+                            if score >= thresh:
+                                continue
+                        if start_idx < end_idx:
+                            score = (p_start[idx][start_idx].item() + p_end[idx][end_idx].item()) / 2.
+                            if score >= thresh:
+                                s = queries["offset_mapping"][idx][start_idx:end_idx][0][0].item()
+                                e = queries["offset_mapping"][idx][start_idx:end_idx][-1][-1].item()
+                                decoded = query_texts[idx][s:e]
+                                predicted_entities[idx].append(dict(start=s, end=e, entity_value=decoded, score=score,
+                                                                    label=str(entity_keys[entity_idx])))
 
-            final_outputs.append(temp)
+        nonoverlapping_predicted_entities = []
 
-        return final_outputs
+        for q in predicted_entities:
+            if not len(q):
+                nonoverlapping_predicted_entities.append([])
+                continue
+            q.sort(key=lambda x: x['score'], reverse=True)
+            f = [q[0]]
+            last = q[0]
+            for o in q[1:]:
+                if o['start'] < last['end']:
+                    continue
+                else:
+                    f.append(o)
+                    last = o
+
+            nonoverlapping_predicted_entities.append(f)
+
+        return nonoverlapping_predicted_entities
