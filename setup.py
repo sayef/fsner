@@ -11,7 +11,6 @@ try:
 
     if "sdist" in sys.argv:
         import semantic_version
-        import os
 
         version = subprocess.check_output("git describe --exact-match --tags HEAD", shell=True).decode().strip()
         if version.startswith('v'):
@@ -22,7 +21,15 @@ try:
             f.write(f'__version__ = "{version}"')
 
     else:
-        version = '0.0.0'
+        import re
+
+        print(os.listdir(ROOT_DIR))
+        with open(os.path.join(ROOT_DIR, 'PKG-INFO')) as f:
+            content = f.read()
+            matcher = re.search(r"^Version: (.*)$", content, re.M)
+            if matcher:
+                version = matcher.group(1).strip()
+        print(version)
 
     with open("README.md", "r", encoding="utf-8") as fh:
         long_description = fh.read()

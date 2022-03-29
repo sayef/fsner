@@ -111,8 +111,8 @@ if __name__ == '__main__':
     print("Parameters:")
     print("=" * 50)
     for k, v in vars(args).items():
-        if isinstance(v, Fraction):
-            v = str(v)
+        v = str(v)
+        if str(k) == 'func': continue
         print(f"{k:<30}{v:>20}")
     print("=" * 50)
 

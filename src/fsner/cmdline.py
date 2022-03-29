@@ -15,14 +15,14 @@ def main():
     trainer_parser.set_defaults(func=trainer_main)
 
     args = parser.parse_args()
-
-    print("Parameters:")
-    print("=" * 50)
-    for k, v in vars(args).items():
-        v = str(v)
-        if str(k) == 'func': continue
-        print(f"{k:<30}{v:>20}")
-    print("=" * 50)
+    if 'trainer' in args:
+        print("Parameters:")
+        print("=" * 50)
+        for k, v in vars(args).items():
+            v = str(v)
+            if str(k) == 'func': continue
+            print(f"{k:<30}{v:>20}")
+        print("=" * 50)
 
     try:
         args.func(args)
