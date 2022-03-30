@@ -104,10 +104,10 @@ pretty_embed(query_texts, output, list(support_texts.keys()))
 
 ## Datasets preparation
 
-1. We need to convert dataset into the following format. Let's say we have a dataset file train.json like following.
-2. Each list in supports are the examples of one entity type
-3. Wrap entities around with [E] and [/E] in the examples.
-4. Each example should have only one pair of [E] ... [/E].
+- We need to convert dataset into the following format.
+- Each list in supports are the examples of one entity type.
+- Wrap entities around with [E] and [/E] in the examples.
+- Each example should have only one pair of [E] and [/E].
 
 ```json
 {
@@ -132,11 +132,11 @@ pretty_embed(query_texts, output, list(support_texts.keys()))
 }
 ```
 
-2. Converted ontonotes5 dataset can be found here:
+- Converted ontonotes5 dataset can be found here:
     1. [train](https://gist.githubusercontent.com/sayef/46deaf7e6c6e1410b430ddc8aff9c557/raw/ea7ae2ae933bfc9c0daac1aa52a9dc093d5b36f4/ontonotes5.train.json)
     2. [dev](https://gist.githubusercontent.com/sayef/46deaf7e6c6e1410b430ddc8aff9c557/raw/ea7ae2ae933bfc9c0daac1aa52a9dc093d5b36f4/ontonotes5.dev.json)
 
-3. Then trainer script can be used to train/evaluate your fsner model.
+- Trainer script can be used to train/evaluate your fsner model.
 
 ```bash
 fsner trainer --pretrained-model bert-base-uncased --mode train --train-data train.json --val-data val.json \
